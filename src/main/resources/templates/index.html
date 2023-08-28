@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>二维码</title>
+</head>
+<body>
+<h1>谷歌zxing开源库生成黑白二维码</h1>
+<hr>
+请输入文本内容:<input type="text" id="url"><button onclick="generateQRCode()">生成二维码</button><br>
+<img id="qrCodeImg">
+<script>
+    function generateQRCode(){
+        //获取url
+       let url =  document.getElementById("url").value
+        //设置img标签的src属性
+        let qrCodeImg = document.getElementById("qrCodeImg")
+        qrCodeImg.src = "/generate?url="+ url
+    }
+</script>
+</body>
+</html>
