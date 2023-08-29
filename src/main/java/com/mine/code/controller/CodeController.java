@@ -9,14 +9,20 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 
 import javax.imageio.ImageIO;
 import javax.servlet.ServletOutputStream;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.Part;
+import java.awt.*;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,12 +37,89 @@ import java.util.Map;
 @Controller
 public class CodeController {
 
+
+    /**
+     * 跳转到生成带logo的黑白二维码
+     */
+    @GetMapping("/logo")
+    public String toLogo() {
+        return "qrcode";
+    }
+
+    /**
+     * 生成带logo的黑白二维码
+     */
+    @PostMapping("/generateWithLogo")
+    public String generateWithLogo(@RequestParam("url") String url, HttpServletResponse response, HttpServletRequest request) {
+        try {
+            Map map = new HashMap<>();
+            map.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.H);
+            map.put(EncodeHintType.CHARACTER_SET, "utf-8");
+            map.put(EncodeHintType.MARGIN, 1);
+            MultiFormatWriter writer = new MultiFormatWriter();
+            BitMatrix bitMatrix = writer.encode(url, BarcodeFormat.QR_CODE, 300, 300, map);
+            int width = bitMatrix.getWidth();
+            int height = bitMatrix.getHeight();
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_BGR);
+            for (int x = 0; x < width; x++) {
+                for (int y = 0; y < height; y++) {
+                    image.setRGB(x, y, bitMatrix.get(x, y) ? 0xFF000000 : 0xFFFFFFFF);
+                }
+            }
+            //给二维码添加logo
+            //1.获取logo
+            Part logoPart = request.getPart("logo");
+            InputStream inputStream = logoPart.getInputStream();
+            BufferedImage logoImage = ImageIO.read(inputStream);
+            //2.对获取的logo图片进行缩放
+            int logoWidth = logoImage.getWidth(null);
+            int logoHeight = logoImage.getHeight(null);
+            if (logoWidth > 60){
+                logoWidth = 60;
+            }
+            if (logoHeight > 60){
+                logoHeight = 60;
+            }
+            //使用平滑缩放算法对原始的logo图像进行缩放到一个全新的图像
+            Image scaledLogo = logoImage.getScaledInstance(logoWidth, logoHeight, Image.SCALE_SMOOTH);
+            //3.将缩放的图片画在黑白的二维码上
+            //获取一个画笔
+            Graphics2D graphics2D = image.createGraphics();
+            //计算从哪里开始画 300指的是二维码的宽度和高度
+            int x = (300 - logoWidth) /2;
+            int y = (300 - logoHeight) /2;
+            //画上去
+            graphics2D.drawImage(scaledLogo,x,y,null);
+            //实现logo的圆角效果
+            Shape shape = new RoundRectangle2D.Float(x, y, logoWidth, logoHeight, 10, 10);
+            //使用一个宽度为4像素的基本笔触
+            graphics2D.setStroke(new BasicStroke(4f));
+            //给logo画圆角矩形
+            graphics2D.draw(shape);
+            //释放画笔
+            graphics2D.dispose();
+            //将二维码响应到浏览器
+            ImageIO.write(image, "png", response.getOutputStream());
+            //关闭流
+            inputStream.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+
+    /**
+     * 跳转到生成普通黑白二维码的页面
+     */
     @GetMapping("/")
     public String index() {
         return "index";
     }
 
-
+    /**
+     * 生成普通的黑白二维码
+     */
     @GetMapping("/generate")
     public String generate(@RequestParam("url") String url, HttpServletResponse response) {
         log.info("文本内容:{}", url);
@@ -79,7 +162,7 @@ public class CodeController {
             }
             //将图片响应到客户端
             ServletOutputStream out = response.getOutputStream();
-            ImageIO.write(image,"png",out);
+            ImageIO.write(image, "png", out);
             out.flush();
             out.close();
         } catch (Exception e) {
